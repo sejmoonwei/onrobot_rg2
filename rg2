@@ -1,0 +1,52 @@
+import socket
+import time
+
+def send_ur_script_cmd(ip, port, script):
+    """
+    发送URScript命令到UR机械臂。
+    尝试连接到指定的IP和端口，如果连接失败则捕获异常并打印错误信息。
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((ip, port))
+            print(f"Successfully connected to {ip}:{port}")
+            s.sendall(script.encode('utf8'))
+            time.sleep(1)  # 等待命令执行
+    except OSError as e:
+        print(f"Failed to connect to {ip}:{port}. Error: {e}")
+
+def rg2_gripper_control(ip, target_width=110, target_force=40, payload=0.5, wait=2):
+    """
+    控制RG2夹爪的函数。
+    target_width: 目标夹持宽度(mm)，注意机械手臂与夹爪之间的物理位移。
+    target_force: 目标夹持力度。
+    payload: 负载重量(kg)。
+    wait: 执行后等待时间。
+    """
+    urscript = f"""
+    def rg2_control():
+        set_tool_voltage(24)
+        rg_data = floor({target_width} + 9.2) * 4 + floor({target_force} / 2) * 4 * 111 + 32768
+        write_output_integer_register(0, rg_data)
+        sleep(0.1)
+        set_digital_out(8, True)
+        sleep(0.1)
+        set_digital_out(8, False)
+        sleep({wait})
+    end
+    rg2_control()
+    """
+    send_ur_script_cmd(ip, 30003, urscript)
+
+if __name__ == "__main__":
+    ip_address = "192.168.125.101"  # 机械臂的IP地址
+    port = 30003  # 修改为实际使用的端口
+
+    # 打开夹爪到80mm宽，夹持力40N，负载0.5kg
+    rg2_gripper_control(ip_address, target_width=80, target_force=40, payload=0.5, wait=2)
+
+    # 延时，以便观察
+    time.sleep(5)
+
+    # 关闭夹爪，其他参数同上
+    rg2_gripper_control(ip_address, target_width=0, target_force=40, payload=0.5, wait=2)
